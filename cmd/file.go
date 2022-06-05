@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -69,22 +68,45 @@ func GetInfo(c echo.Context) error {
 
 	m := make(map[string][]*UserStat)
 
-	_, err = db.Query(`CREATE TABLE IF NOT EXISTS "address"("usd" CHAR(1024), "adresses" CHAR(1024), "created_at" CHAR(1024), CONSTRAINT "pk_Address" PRIMARY KEY ("usd"))`)
+	_, err = db.Query(`CREATE TABLE "address" (
+    "id" SERIAL NOT NULL,
+    "addresses" CHAR(1024)   NOT NULL,
+    "created_at" date   NOT NULL,
+    CONSTRAINT "pk_Address" PRIMARY KEY (
+        "id"
+     )
+)`)
 	if err != nil {
-		return err
-	}
-	_, err = db.Query(`CREATE TABLE IF NOT EXISTS "debank_api_results"("ID" CHAR(1024), "Chain" CHAR(1024), "Name" CHAR(1024),
-"SiteURL" CHAR(1024), "LogoURL" CHAR(1024), "HasSupportedPortfolio" boolean, "Tvl" CHAR(1024), "netUsdValue" CHAR(1024), "AssetUsdValue" CHAR(1024), "DebtUsdValue" CHAR(1024),
-    CONSTRAINT "pk_Debank" PRIMARY KEY ("AssetUsdValue"))`)
-	if err != nil {
-		return err
+		log.Printf("Error1: %v", err)
 	}
 
-	_, err = db.Query(`ALTER TABLE "address" ADD CONSTRAINT "fk_Address" FOREIGN KEY ("usd") REFERENCES "debank_api_results" ("AssetUsdValue")`)
+	_, err = db.Query(`CREATE TABLE "debank_api_results" (
+		"ItemId"  SERIAL  NOT NULL,
+		"ID" CHAR(1024)   NOT NULL,
+		"Chain" CHAR(1024)   NOT NULL,
+		"Name" CHAR(1024)   NOT NULL,
+		"SiteURL" CHAR(1024)   NOT NULL,
+		"LogoURL" CHAR(1024)   NOT NULL,
+		"HasSupportedPortfolio" bool   NOT NULL,
+		"Tvl" float   NOT NULL,
+		"netUsdValue" float   NOT NULL,
+		"AssetUsdValue" float   NOT NULL,
+		"DebtUsdValue" float   NOT NULL,
+		CONSTRAINT "pk_debank_api_results" PRIMARY KEY (
+		"ItemId"
+	)
+	)`)
+
 	if err != nil {
-		log.Printf("Error: %v", err)
-		return err
+		log.Printf("Error2: %v", err)
 	}
+
+	//	_, err = db.Query(`ALTER TABLE "address" ADD CONSTRAINT "fk_Address_usd" FOREIGN KEY("usd")
+	//REFERENCES "debank_api_results" ("ItemId");`)
+	//
+	//	if err != nil {
+	//		log.Printf("Error3: %v", err)
+	//	}
 
 	fmt.Println("Table created")
 
@@ -114,49 +136,41 @@ func GetInfo(c echo.Context) error {
 
 		for key, value := range m {
 
-			var AssetUsdValue string
-
-			cur := time.Now()
+			_, err = db.Query(`INSERT INTO "address"(
+							"addresses",
+							"created_at"
+						 )
+						 VALUES($1, $2)`, key, time.Now())
+			if err != nil {
+				log.Printf("Errorrr: %v", err)
+				fmt.Println(url)
+			}
 			for _, v := range value {
 
-				ctx := context.Background()
-
-				err := db.QueryRowContext(ctx, `INSERT INTO "debank_api_results"(
-							"ID",
-							"Chain",
-							"Name",
-							"SiteURL",
-						    "LogoURL",
-							"HasSupportedPortfolio",
-						    "Tvl",
-						    "netUsdValue",
-							"AssetUsdValue",
-		                   	"DebtUsdValue"
-						 )
-						 VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING "netUsdValue"`, v.ID, v.Chain, v.Name, v.SiteURL, v.LogoURL, v.HasSupportedPortfolio,
-					v.Tvl, v.netUsdValue, v.AssetUsdValue, v.DebtUsdValue).Scan(&AssetUsdValue)
-				fmt.Println(AssetUsdValue)
+				_, err = db.Query(`INSERT INTO "debank_api_results"(
+						"ID",
+						"Chain",
+						"Name",
+						"SiteURL",
+					    "LogoURL",
+						"HasSupportedPortfolio",
+					    "Tvl",
+					    "netUsdValue",
+						"AssetUsdValue",
+			          	"DebtUsdValue"
+					 )
+					 VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, v.ID, v.Chain, v.Name, v.SiteURL, v.LogoURL, v.HasSupportedPortfolio,
+					v.Tvl, v.netUsdValue, v.AssetUsdValue, v.DebtUsdValue)
 
 				if err != nil {
 					log.Printf("Error: %v", err)
 					fmt.Println(url)
-					return err
 				}
-			}
-			_, err = db.Query(`INSERT INTO "address"(
-							"usd",
-							"adresses",
-							"created_at"
-						 )
-						 VALUES($1, $2, $3)`, AssetUsdValue, key, cur)
-			if err != nil {
-				log.Printf("Errorrr: %v", err)
-				return err
 			}
 		}
 	}
 
-	return c.JSON(http.StatusOK, "ok")
+	return c.HTML(http.StatusOK, "ok")
 }
 
 /// ! use redis - 4 hours
