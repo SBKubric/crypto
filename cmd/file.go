@@ -1,15 +1,16 @@
 package cmd
 
 import (
-	"bytes"
+	"context"
 	"database/sql"
-	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"github.com/labstack/echo/v4"
 	_ "github.com/lib/pq"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 )
 
 const (
@@ -20,20 +21,20 @@ const (
 	dbname   = "postgres"
 )
 
-type AutoGenerate struct {
-	ID                    string  `json:"id"`
-	Chain                 string  `json:"chain"`
-	Name                  string  `json:"name"`
-	SiteURL               string  `json:"site_url"`
-	LogoURL               string  `json:"logo_url"`
-	HasSupportedPortfolio bool    `json:"has_supported_portfolio"`
-	Tvl                   float64 `json:"tvl"`
-	netUsdValue           float64 `json:"net_usd_value"`
-	AssetUsdValue         float64 `json:"asset_usd_value"`
-	DebtUsdValue          int     `json:"debt_usd_value"`
+type UserStat struct {
+	ID                    string      `json:"id"`
+	Chain                 string      `json:"chain"`
+	Name                  string      `json:"name"`
+	SiteURL               string      `json:"site_url"`
+	LogoURL               string      `json:"logo_url"`
+	HasSupportedPortfolio bool        `json:"has_supported_portfolio"`
+	Tvl                   float64     `json:"tvl"`
+	netUsdValue           float64     `json:"net_usd_value"`
+	AssetUsdValue         float64     `json:"asset_usd_value"`
+	DebtUsdValue          json.Number `json:"debt_usd_value"`
 }
 
-func (t *AutoGenerate) Dump(indent string) {
+func (t *UserStat) Dump(indent string) {
 	fmt.Println(indent+"id:", t.ID)
 	fmt.Print(indent+"chain: ", t.Chain)
 	fmt.Print(indent+"Name: ", t.Name)
@@ -66,15 +67,22 @@ func GetInfo(c echo.Context) error {
 		"0x8c2753ee27ba890fbb60653d156d92e1c334f528",
 	}
 
-	m := make(map[string]interface{})
+	m := make(map[string][]*UserStat)
 
-	_, err = db.Query(`CREATE TABLE IF NOT EXISTS "address"("usd" CHAR, "adresses" CHAR, "created_at" CHAR)`)
+	_, err = db.Query(`CREATE TABLE IF NOT EXISTS "address"("usd" CHAR(1024), "adresses" CHAR(1024), "created_at" CHAR(1024), CONSTRAINT "pk_Address" PRIMARY KEY ("usd"))`)
 	if err != nil {
 		return err
 	}
-	_, err = db.Query(`CREATE TABLE IF NOT EXISTS "debank_api_results"("ID" CHAR, "Chain" CHAR, "Name" CHAR,
-"SiteURL" CHAR, "LogoURL" CHAR, "HasSupportedPortfolio" boolean, "Tvl" FLOAT, "netUsdValue" FLOAT, "AssetUsdValue" FLOAT, "DebtUsdValue" INTEGER)`)
+	_, err = db.Query(`CREATE TABLE IF NOT EXISTS "debank_api_results"("ID" CHAR(1024), "Chain" CHAR(1024), "Name" CHAR(1024),
+"SiteURL" CHAR(1024), "LogoURL" CHAR(1024), "HasSupportedPortfolio" boolean, "Tvl" CHAR(1024), "netUsdValue" CHAR(1024), "AssetUsdValue" CHAR(1024), "DebtUsdValue" CHAR(1024),
+    CONSTRAINT "pk_Debank" PRIMARY KEY ("AssetUsdValue"))`)
 	if err != nil {
+		return err
+	}
+
+	_, err = db.Query(`ALTER TABLE "address" ADD CONSTRAINT "fk_Address" FOREIGN KEY ("usd") REFERENCES "debank_api_results" ("AssetUsdValue")`)
+	if err != nil {
+		log.Printf("Error: %v", err)
 		return err
 	}
 
@@ -93,36 +101,59 @@ func GetInfo(c echo.Context) error {
 			log.Fatalln(err)
 		}
 
-		sb := string(body)
-		m[value] = sb
+		var userStat []*UserStat
 
-		b := new(bytes.Buffer)
-		e := gob.NewEncoder(b)
-
-		// Encoding the map
-		err = e.Encode(m)
+		err = json.Unmarshal(body, &userStat)
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
+		} else {
+			fmt.Println("--------\n", userStat)
 		}
 
-		var decodedMap map[string]interface{}
-		d := gob.NewDecoder(b)
+		m[value] = userStat
 
-		// Decoding the serialized data
-		err = d.Decode(&decodedMap)
-		if err != nil {
-			panic(err)
-		}
+		for key, value := range m {
 
-		for key, value := range decodedMap {
-			fmt.Println("Key:", key, "Value:", value)
+			var AssetUsdValue string
 
-			for k, v := range value {
-				fmt.Print(k)
-				fmt.Print(v)
+			cur := time.Now()
+			for _, v := range value {
+
+				ctx := context.Background()
+
+				err := db.QueryRowContext(ctx, `INSERT INTO "debank_api_results"(
+							"ID",
+							"Chain",
+							"Name",
+							"SiteURL",
+						    "LogoURL",
+							"HasSupportedPortfolio",
+						    "Tvl",
+						    "netUsdValue",
+							"AssetUsdValue",
+		                   	"DebtUsdValue"
+						 )
+						 VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING "netUsdValue"`, v.ID, v.Chain, v.Name, v.SiteURL, v.LogoURL, v.HasSupportedPortfolio,
+					v.Tvl, v.netUsdValue, v.AssetUsdValue, v.DebtUsdValue).Scan(&AssetUsdValue)
+				fmt.Println(AssetUsdValue)
+
+				if err != nil {
+					log.Printf("Error: %v", err)
+					fmt.Println(url)
+					return err
+				}
+			}
+			_, err = db.Query(`INSERT INTO "address"(
+							"usd",
+							"adresses",
+							"created_at"
+						 )
+						 VALUES($1, $2, $3)`, AssetUsdValue, key, cur)
+			if err != nil {
+				log.Printf("Errorrr: %v", err)
+				return err
 			}
 		}
-
 	}
 
 	return c.JSON(http.StatusOK, "ok")
