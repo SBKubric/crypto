@@ -8,7 +8,7 @@ import (
 	"net/http"
 )
 
-func GetInfo(c echo.Context) error {
+func FetchData(c echo.Context) error {
 	_, err := db.ConnectDb()
 	if err != nil {
 		log.Printf("Error connecting to db: %v", err)
@@ -19,6 +19,38 @@ func GetInfo(c echo.Context) error {
 	err = db.SaveDebank(c)
 
 	return c.HTML(http.StatusOK, "ok")
+}
+
+//func GetUsd(c echo.Context) error {
+//	_, err := db.ConnectDb()
+//	if err != nil {
+//		log.Printf("Error connecting to db: %v", err)
+//		return err
+//	}
+//
+//	addresses, err := db.GetUsd(c)
+//	if err != nil {
+//		log.Printf("Error: %v", err)
+//		return err
+//	}
+//
+//	return c.JSON(http.StatusOK, addresses)
+//}
+
+func GetUsd(c echo.Context) error {
+	_, err := db.ConnectDb()
+	if err != nil {
+		log.Printf("Error connecting to db: %v", err)
+		return err
+	}
+
+	addresses, err := db.GetUsd(c)
+	if err != nil {
+		log.Printf("Error: %v", err)
+		return err
+	}
+
+	return c.JSON(http.StatusOK, addresses)
 }
 
 /// ! use redis - 4 hours

@@ -12,7 +12,12 @@ import (
 	"time"
 )
 
-//var db *sql.DB
+type Address struct {
+	Id         int    `json:"id"`
+	Usd        string `json:"usd"`
+	Addresses  string `json:"address"`
+	Created_at string `json:"created_at"`
+}
 
 const (
 	host     = "localhost"
@@ -86,7 +91,6 @@ func CreateAddressTable() (*sql.DB, error) {
 }
 
 func InsertAddresses(db *sql.DB) error {
-	/// какой именно из запросов сохранятеся много раз
 	for _, value := range adresses {
 		_, err := db.Query(`INSERT INTO "address"(
 							"addresses",
@@ -216,6 +220,66 @@ func SaveDebank(c echo.Context) error {
 		log.Printf("Couldn't insert data to table debank: %v", err)
 	}
 	return c.HTML(http.StatusOK, "ok")
+}
+
+//func GetUsd(c echo.Context) ([]*Address, error) {
+//
+//	db, err := ConnectDb()
+//	if err != nil {
+//		log.Print(err)
+//	}
+//
+//	sql := fmt.Sprintf(`SELECT * FROM address`)
+//
+//	rows, err := db.Query(sql)
+//	if err != nil {
+//		log.Printf("Couldn't execute query", err)
+//	}
+//
+//	list := []*Address{}
+//	for rows.Next() {
+//		obj := Address{}
+//		if err := rows.Scan(&obj.Id, &obj.Addresses, &obj.Created_at); err != nil {
+//			return nil, err
+//		}
+//		list = append(list, &obj)
+//	}
+//	if err = rows.Err(); err != nil {
+//		return nil, err
+//	}
+//
+//	return list, nil
+//}
+
+func GetUsd(c echo.Context) ([]*Address, error) {
+
+	db, err := ConnectDb()
+	if err != nil {
+		log.Print(err)
+	}
+
+	sql := fmt.Sprintf(`SELECT address."addresses", address."created_at", debank_api_results."AssetUsdValue" FROM address left JOIN debank_api_results  ON 'address.id' = 'debank_api_results.addressid'  `)
+
+	rows, err := db.Query(sql)
+	if err != nil {
+		log.Printf("Couldn't execute query", err)
+	}
+
+	list := []*Address{}
+	for rows.Next() {
+		obj := Address{}
+		//if err := rows.Scan(&obj.Usd, &obj.Addresses, &obj.Created_at); err != nil {
+		if err := rows.Scan(&obj.Addresses, &obj.Created_at, &obj.Usd); err != nil {
+
+			return nil, err
+		}
+		list = append(list, &obj)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return list, nil
 }
 
 /// ! use redis - 4 hours
