@@ -1,6 +1,7 @@
 package db
 
 import (
+	"crypto/pkg/models"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -12,13 +13,6 @@ import (
 	"time"
 )
 
-type Address struct {
-	Id         int    `json:"id"`
-	Usd        string `json:"usd"`
-	Addresses  string `json:"address"`
-	Created_at string `json:"created_at"`
-}
-
 const (
 	host     = "localhost"
 	port     = 5432
@@ -26,20 +20,6 @@ const (
 	password = "123"
 	dbname   = "postgres"
 )
-
-type UserStat struct {
-	ItemId                int         `json:"itemId"`
-	ID                    string      `json:"id"`
-	Chain                 string      `json:"chain"`
-	Name                  string      `json:"name"`
-	SiteURL               string      `json:"site_url"`
-	LogoURL               string      `json:"logo_url"`
-	HasSupportedPortfolio bool        `json:"has_supported_portfolio"`
-	Tvl                   float64     `json:"tvl"`
-	netUsdValue           float64     `json:"net_usd_value"`
-	AssetUsdValue         float64     `json:"asset_usd_value"`
-	DebtUsdValue          json.Number `json:"debt_usd_value"`
-}
 
 var adresses = []string{
 	"0xba8a8f39b2315d4bc725c026ce3898c2c7e74f57",
@@ -131,10 +111,10 @@ func CreateDebankTable() (*sql.DB, error) {
 		"SiteURL" CHAR(1024)   NOT NULL,
 		"LogoURL" CHAR(1024)   NOT NULL,
 		"HasSupportedPortfolio" bool   NOT NULL,
-		"Tvl" float   NOT NULL,
-		"netUsdValue" float   NOT NULL,
-		"AssetUsdValue" float   NOT NULL,
-		"DebtUsdValue" float   NOT NULL,
+		"Tvl" CHAR(1024)   NOT NULL,
+		"netUsdValue" CHAR(1024)   NOT NULL,
+		"AssetUsdValue" CHAR(1024),
+		"DebtUsdValue" CHAR(1024)   NOT NULL,
 		addressId  INTEGER,
 		CONSTRAINT "pk_debank_api_results" PRIMARY KEY (
 		"ItemId"
@@ -156,7 +136,7 @@ func CreateDebankTable() (*sql.DB, error) {
 
 func InsertDebankResults(db *sql.DB) error {
 
-	var m = make(map[string][]*UserStat)
+	var m = make(map[string][]*models.UserStat)
 
 	for _, value := range adresses {
 		url := fmt.Sprintf("https://openapi.debank.com/v1/user/simple_protocol_list?id=%s", value)
@@ -171,7 +151,7 @@ func InsertDebankResults(db *sql.DB) error {
 			log.Fatalln(err)
 		}
 
-		var userStat []*UserStat
+		var userStat []*models.UserStat
 
 		err = json.Unmarshal(body, &userStat)
 		if err != nil {
@@ -198,7 +178,7 @@ func InsertDebankResults(db *sql.DB) error {
 				   "addressid"
 			   )
 			   VALUES( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, (SELECT id from address WHERE "addresses"= $11) )`,
-					v.ID, v.Chain, v.Name, v.SiteURL, v.LogoURL, v.HasSupportedPortfolio, v.Tvl, v.netUsdValue, v.AssetUsdValue, v.DebtUsdValue, key)
+					v.ID, v.Chain, v.Name, v.SiteURL, v.LogoURL, v.HasSupportedPortfolio, v.Tvl, v.NetUsdValue, v.AssetUsdValue, v.DebtUsdValue, key)
 				if err != nil {
 					log.Printf("Error inserting data to debank table: %v", err)
 					log.Printf("Info: %v", v)
@@ -222,36 +202,7 @@ func SaveDebank(c echo.Context) error {
 	return c.HTML(http.StatusOK, "ok")
 }
 
-//func GetUsd(c echo.Context) ([]*Address, error) {
-//
-//	db, err := ConnectDb()
-//	if err != nil {
-//		log.Print(err)
-//	}
-//
-//	sql := fmt.Sprintf(`SELECT * FROM address`)
-//
-//	rows, err := db.Query(sql)
-//	if err != nil {
-//		log.Printf("Couldn't execute query", err)
-//	}
-//
-//	list := []*Address{}
-//	for rows.Next() {
-//		obj := Address{}
-//		if err := rows.Scan(&obj.Id, &obj.Addresses, &obj.Created_at); err != nil {
-//			return nil, err
-//		}
-//		list = append(list, &obj)
-//	}
-//	if err = rows.Err(); err != nil {
-//		return nil, err
-//	}
-//
-//	return list, nil
-//}
-
-func GetUsd(c echo.Context) ([]*Address, error) {
+func GetUsd() ([]*models.Address, error) {
 
 	db, err := ConnectDb()
 	if err != nil {
@@ -265,12 +216,11 @@ func GetUsd(c echo.Context) ([]*Address, error) {
 		log.Printf("Couldn't execute query", err)
 	}
 
-	list := []*Address{}
+	list := []*models.Address{}
 	for rows.Next() {
-		obj := Address{}
+		obj := models.Address{}
 		//if err := rows.Scan(&obj.Usd, &obj.Addresses, &obj.Created_at); err != nil {
 		if err := rows.Scan(&obj.Addresses, &obj.Created_at, &obj.Usd); err != nil {
-
 			return nil, err
 		}
 		list = append(list, &obj)
@@ -280,6 +230,23 @@ func GetUsd(c echo.Context) ([]*Address, error) {
 	}
 
 	return list, nil
+}
+
+func DeleteTables() error {
+	db, err := ConnectDb()
+	if err != nil {
+		log.Print(err)
+	}
+
+	_, err = db.Exec(`DROP TABLE debank_api_results`)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`DROP TABLE address`)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 /// ! use redis - 4 hours
