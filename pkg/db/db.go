@@ -11,14 +11,16 @@ import (
 	"log"
 	"net/http"
 	"time"
-	"os"
 )
 
-var host = os.Getenv("POSTGRES_HOST")
-var port     = os.Getenv("POSTGRES_PORT")
-var user     = os.Getenv("POSTGRES_USER")
-var password = os.Getenv("POSTGRES_PASSWORD")
-var dbname   = os.Getenv("POSTGRES_DB")
+const (
+	host     = "postgres"
+	port     = 5432
+	user     = "postgres"
+	password = "postgres"
+	dbname   = "postgres"
+)
+
 
 
 var adresses = []string{
