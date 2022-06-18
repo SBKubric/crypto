@@ -11,15 +11,15 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"os"
 )
 
-const (
-	host     = "localhost"
-	port     = 5432
-	user     = "postgres"
-	password = "123"
-	dbname   = "postgres"
-)
+var host = os.Getenv("POSTGRES_HOST")
+var port     = os.Getenv("POSTGRES_PORT")
+var user     = os.Getenv("POSTGRES_USER")
+var password = os.Getenv("POSTGRES_PASSWORD")
+var dbname   = os.Getenv("POSTGRES_DB")
+
 
 var adresses = []string{
 	"0xba8a8f39b2315d4bc725c026ce3898c2c7e74f57",
@@ -250,3 +250,4 @@ func DeleteTables() error {
 }
 
 /// ! use redis - 4 hours
+
