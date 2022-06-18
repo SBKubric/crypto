@@ -11,15 +11,21 @@ import (
 	"log"
 	"net/http"
 	"time"
-	"os"
 )
 
-var host = os.Getenv("POSTGRES_HOST")
-var port     = os.Getenv("POSTGRES_PORT")
-var user     = os.Getenv("POSTGRES_USER")
-var password = os.Getenv("POSTGRES_PASSWORD")
-var dbname   = os.Getenv("POSTGRES_DB")
+const (
+	host     = "localhost"
+	port     = 5432
+	user     = "postgres"
+	password = "123"
+	dbname   = "postgres"
+)
 
+//var host = os.Getenv("POSTGRES_HOST")
+//var port     = os.Getenv("POSTGRES_PORT")
+//var user     = os.Getenv("POSTGRES_USER")
+//var password = os.Getenv("POSTGRES_PASSWORD")
+//var dbname   = os.Getenv("POSTGRES_DB")
 
 var adresses = []string{
 	"0xba8a8f39b2315d4bc725c026ce3898c2c7e74f57",
@@ -113,7 +119,7 @@ func CreateDebankTable() (*sql.DB, error) {
 		"HasSupportedPortfolio" bool   NOT NULL,
 		"Tvl" CHAR(1024)   NOT NULL,
 		"netUsdValue" CHAR(1024)   NOT NULL,
-		"AssetUsdValue" CHAR(1024),
+		"AssetUsdValue" CHAR(1024) NOT NULL,
 		"DebtUsdValue" CHAR(1024)   NOT NULL,
 		addressId  INTEGER,
 		CONSTRAINT "pk_debank_api_results" PRIMARY KEY (
@@ -209,7 +215,7 @@ func GetUsd() ([]*models.Address, error) {
 		log.Print(err)
 	}
 
-	sql := fmt.Sprintf(`SELECT address."addresses", address."created_at", debank_api_results."AssetUsdValue" FROM address left JOIN debank_api_results  ON 'address.id' = 'debank_api_results.addressid'  `)
+	sql := fmt.Sprintf(`SELECT address."addresses", address."created_at", coalesce(debank_api_results."AssetUsdValue", '') FROM address left JOIN debank_api_results  ON 'address.id' = 'debank_api_results.addressid'  `)
 
 	rows, err := db.Query(sql)
 	if err != nil {
@@ -219,7 +225,6 @@ func GetUsd() ([]*models.Address, error) {
 	list := []*models.Address{}
 	for rows.Next() {
 		obj := models.Address{}
-		//if err := rows.Scan(&obj.Usd, &obj.Addresses, &obj.Created_at); err != nil {
 		if err := rows.Scan(&obj.Addresses, &obj.Created_at, &obj.Usd); err != nil {
 			return nil, err
 		}
@@ -250,4 +255,3 @@ func DeleteTables() error {
 }
 
 /// ! use redis - 4 hours
-
