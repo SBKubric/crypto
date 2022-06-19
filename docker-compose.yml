@@ -8,21 +8,17 @@ services:
     build:
       context: .
       dockerfile: ./compose/crypto/Dockerfile
-    image: ghcr.io/sbkubric/crypto_app
+    image: crypto_app
     platform: linux/amd64
-    environment:
-      - POSTGRES_DB={$POSTGRES_DB}
-      - POSTGRES_USER={$POSTGRES_USER}
-      - POSTGRES_PASSWORD={$POSTGRES_PASSWORD}
-      - POSTGRES_PORT={$POSTGRES_PORT}
-      - POSTGRES_HOST={$POSTGRES_HOST}
+    env_file:
+      - ./.env
     depends_on:
       - postgres
     ports:
       - "9999:9999"
 
   postgres:
-    image: ghcr.io/sbkubric/crypto_db 
+    image: postgres:14.2 
     healthcheck:
       test: [ "CMD", "pg_isready", "-U", "$POSTGRES_USER", "-d", "$POSTGRES_DB" ]
       interval: 10s
@@ -30,12 +26,8 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
-    environment:
-      - POSTGRES_DB={$POSTGRES_DB}
-      - POSTGRES_USER={$POSTGRES_USER}
-      - POSTGRES_PASSWORD={$POSTGRES_PASSWORD}
-      - POSTGRES_PORT={$POSTGRES_PORT}
-      - POSTGRES_HOST={$POSTGRES_HOST}
+    env_file:
+      - ./.env 
     deploy:
       resources:
         limits:
